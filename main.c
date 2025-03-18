@@ -1,6 +1,8 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+// #include <time.h>
 
 #define CHUNK 1024
 
@@ -21,14 +23,18 @@ struct Weather {
     char weather_icon[5];
 };
 
+const int size_dt_iso = 30, size_city_name = 50,size_weather_main=20,size_weather_description=50,size_weather_icon=5;
 void assign_value_from_index(struct Weather * data , int index , const char * token) { // used in read_csv
-
-    const int size_dt_iso = 30, size_city_name = 50,size_weather_main=20,size_weather_description=50,size_weather_icon=5;
-    int /*i_dt=0,*/i_dt_iso=1,i_timezone=2,i_city_name=3,i_lat=4,i_lon=5,i_temp=6,i_visibility=7,i_dew_point=8,i_feels_like=9;
+    //all errors can be found by "[OUT]" for strings that exceed the limit of characters and 0 for numerical errors or empty fields
+    //empty string fields are empty in the structure
+    int i_dt=0,i_dt_iso=1,i_timezone=2,i_city_name=3,i_lat=4,i_lon=5,i_temp=6,i_visibility=7,i_dew_point=8,i_feels_like=9;
     int i_temp_min=10,i_temp_max=11,i_pressure=12,i_sea_level=13,i_grnd_level=14,i_humidity=15,i_wind_speed=16,i_wind_deg=17;
     int i_wind_gust=18,i_rain_1h=19,i_rain_3h=20,i_snow_1h=21,i_snow_3h=22,i_clouds_all=23,i_weather_id=24,i_weather_main=25;
     int i_weather_description=26, i_weather_icon=27;
 
+    if (index == i_dt) {
+        data->timestamp = atof(token);
+    }
     if (index==i_dt_iso) {
         if (strlen(token)<size_dt_iso)
             strcpy(data->dt_iso,token);
@@ -125,6 +131,7 @@ void assign_value_from_index(struct Weather * data , int index , const char * to
     if (index==i_feels_like) {
         data->feels_like=atof(token);
     }
+    // printf("%d - %s ",index,token);
 
 }
 
@@ -152,20 +159,82 @@ int read_csv(const char *filename, struct Weather **data, int *size) {
         }
         char *tok = strtok(line, ",");
         int index=0;
-        while (tok != NULL) {
+        while (tok != NULL) {    /// this function doesn't process the data as is should
+                /// strtok skips commas
            assign_value_from_index((*data)+*size, index, tok);  // to do
             ++index;
             tok = strtok(NULL, ",");
         }
         ++*size;
-        printf("%d lines processed\n",*size);
+        // printf("%d lines processed\n",*size);
 
     }
     fclose(file);
     return 1;
 }
 
-void display_statistics(struct Weather *data, int size);
+int daily_temp(); // no idea
+void averages(struct Weather *data,int size) {
+    double sum_temp=0,sum_humidity=0,sum_pressure=0;
+    for (int i=0;i<size;i++) {
+        sum_temp+=data[i].temp;
+        sum_humidity+=data[i].humidity;
+        sum_pressure+=data[i].pressure;
+    }
+    printf("average temp: %f\n",sum_temp/size);
+    printf("average humidity: %f\n",sum_humidity/size);
+    printf("average pressure: %f\n",sum_pressure/size);
+}
+
+void count_weather(struct Weather *data,int size) {
+    struct weather_type {
+        char weathers[size_weather_main];
+        int count;
+    };
+    int count_str=0;
+    struct weather_type *weath=(struct weather_type *)malloc(sizeof(struct weather_type));
+    if (weath == NULL) {
+        printf("Memory allocation error\n");
+        return;
+    }
+
+    for (int i=0;i<size;i++) {
+        bool found=false;
+        for (int j=0;j<=count_str;j++) {
+            if (strcmp(data[i].weather_main,weath[j].weathers)==0) {
+                weath[j].count++;
+                found=true;
+                break;
+            }
+        }
+        if (!found) {
+            count_str++;
+            struct weather_type *temp_weather = (struct weather_type *)realloc(weath, (count_str+1) * sizeof(struct weather_type*));
+            if (temp_weather == NULL) {
+                printf("Memory allocation error\n");
+                free(weath);
+                return;
+            }
+            weath = temp_weather;
+
+            strcpy(weath[count_str].weathers,data[i].weather_main);
+            weath[count_str].count=0;
+        }
+    }
+
+    // for (int i=0;i<=count_str;i++) {
+    //     printf("%s : %d\n",weath[i].weathers,weath[i].count);
+    // }
+
+    free(weath);
+}
+
+void display_statistics(struct Weather *data, int size) {
+    averages(data,size);
+    // count_weather(data,size);
+
+
+};
 struct Weather *filter_by_date(struct Weather *data, int size, time_t start, time_t end, int *result_size);
 void draw_temperature_chart(struct Weather *data, int size);
 void free_weather_data(struct Weather *data);
@@ -175,14 +244,16 @@ void print_all_test(struct Weather *data,int size);
 struct Weather *data;
 
 int main() {
-    int size = 0;
+    int size;
     // const char* path = "Timisoara.csv";
-    const char* path = "plm.txt";
+    const char* path = "plm.csv";
     if (read_csv(path, &data, &size)==(-1)) {
         exit(-1);
     }
 
-    print_all_test(data,size);
+    display_statistics(data, size);
+
+    // print_all_test(data,size);
 
     free(data);
     return 0;
@@ -190,6 +261,7 @@ int main() {
 
 void print_all_test(struct Weather *data,int size) {
     for (int i = 0; i < size; i++) {
+        printf("Dt: %lld\n", data[i].timestamp);
         printf("Dt_iso: %s\n", data[i].dt_iso);
         printf("Time: %d\n", data[i].timezone);
         printf("Name: %s\n", data[i].city_name);
