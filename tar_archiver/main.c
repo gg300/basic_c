@@ -19,12 +19,14 @@ struct files{
         char linked_name[100];
     }header;
     struct content{
-
-    };
+        char* block[BLOCK];
+    }content;
 };
 void print_header(struct files* file); // test prototypes
+void print_content(struct files* file,int content_size);
 
-void read_content(); // to do 
+
+void write_header();// to do 
 void write_content(); // to do
 
 int octal_string_to_decimal(char string[],int size){
@@ -40,7 +42,7 @@ int octal_string_to_decimal(char string[],int size){
     return conversion;
 }
 
-void process_header(FILE* input,struct files* file){
+void process_header(FILE* input,struct files* file, int *header_counter){
     //header filed sizes
     int path_and_name_size=100; 
     int file_mode_size=8; // octal
@@ -57,21 +59,24 @@ void process_header(FILE* input,struct files* file){
     char buffer[100];
 
     if(fread(buffer,sizeof(*buffer),path_and_name_size,input) != path_and_name_size){
-        printf("Error reading file\n");
+        if(*header_counter==0)
+            printf("Error reading header file\n");
+        else
+            *header_counter=-1;
       return;
     }
     strcpy(file->header.path_name,buffer);
     total_sizes+=path_and_name_size;
 
     if(fread(buffer,sizeof(*buffer),file_mode_size,input) != file_mode_size){
-        printf("Error reading file\n");
+        printf("Error reading file mode\n");
         return;
     }
     file->header.file_mode=octal_string_to_decimal(buffer,file_mode_size);
     total_sizes+=file_mode_size;
 
     if(fread(buffer,sizeof(*buffer),owner_id_size,input) != owner_id_size){
-        printf("Error reading file\n");
+        printf("Error reading file owner_id\n");
         return;
     }
     file->header.owner_id=octal_string_to_decimal(buffer,owner_id_size);
@@ -79,69 +84,128 @@ void process_header(FILE* input,struct files* file){
 
 
     if(fread(buffer,sizeof(*buffer),group_id_size,input) != group_id_size){
-        printf("Error reading file\n");
+        printf("Error reading file group_id\n");
         return;
     }
     file->header.group_id=octal_string_to_decimal(buffer,group_id_size);
     total_sizes+=group_id_size;
 
     if(fread(buffer,sizeof(*buffer),file_size,input) != file_size){
-        printf("Error reading file\n");
+        printf("Error reading file size\n");
         return;
     }
     file->header.file_size=octal_string_to_decimal(buffer,file_size);
     total_sizes+=file_size;
     
     if(fread(buffer,sizeof(*buffer),last_modification_size,input) != last_modification_size){
-        printf("Error reading file\n");
+        printf("Error reading file modification\n");
         return;
     }
     file->header.last_modification=octal_string_to_decimal(buffer,last_modification_size);
     total_sizes+=last_modification_size;
     
     if(fread(buffer,sizeof(*buffer),checksum_size,input) != checksum_size){
-        printf("Error reading file\n");
+        printf("Error reading file checksum\n");
         return;
     }
     file->header.checksum=octal_string_to_decimal(buffer,checksum_size);
     total_sizes+=checksum_size;
 
     if(fread(buffer,sizeof(*buffer),link_size,input) != link_size){
-        printf("Error reading file\n");
+        printf("Error reading file link\n");
         return;
     }
 
     file->header.link=buffer[0]-'0'; //has only one byte
     total_sizes+=link_size;
     
-
-
     if(fread(buffer,sizeof(*buffer),linked_name_size,input) != linked_name_size){
-        printf("Error reading file\n");
+        printf("Error reading file linked_name\n");
         return;
     }
     strcpy(file->header.linked_name,buffer);
     total_sizes+=linked_name_size;
-
-    while(total_sizes<BLOCK){ // ignore the rest of the header
-        total_sizes++;
+    int remaining=BLOCK-total_sizes;
+    while(total_sizes<BLOCK){
+        int garbage_number;
+        if((remaining%100)>0){garbage_number=remaining%100;
+           if(fread(buffer,sizeof(*buffer),garbage_number,input)!=garbage_number)
+                printf(":P");
+        remaining-=remaining%100;
+        }
+        else{garbage_number=100;
+            if(fread(buffer,sizeof(*buffer),garbage_number,input)!=100)
+                printf(":0");
+        }
+        total_sizes+=garbage_number;
+        printf("\nheader cursor %ld\n",ftell(input));
     }
 
+    (*header_counter)++;
+}
+void process_content(FILE* input,struct files* file,int *content_size){  //// UTF-8 problems with this kind of processing but content is intact
+    *content_size = file->header.file_size/BLOCK + ((file->header.file_size%BLOCK)&&1);
+    // printf("\n size content %d\n",*content_size);
+    // file->content.block = (char**)malloc(sizeof(char*) * (*content_size));
+
+
+     // TO DO !!!! SOMETHING FAILS WITH THE MEMORY ALLOCATION especially from the second file
+
+     
+    for(int i=0;i<*content_size;++i){ // just allocate memory blocks for content 
+        
+        file->content.block[i] = (char*)malloc(BLOCK);
+        printf("content %s %d",file->content.block[i], i);
+        if(file->content.block[i]==NULL){
+            for(int j=0;j<i;j++)
+                free(file->content.block[j]);
+            printf("Error while assigning memory to content");
+            return;
+        }
+        printf("\n for content %d\n",i);
+    }
+    for(int i=0;i<*content_size;++i){ // read the memory blocks for content
+        printf("\n for2 content %d\n",i);
+        if(fread(file->content.block[i],sizeof(*(file->content.block[i])),BLOCK,input) != BLOCK){
+            printf("Error reading file content\n");
+            for(int j=0;j<i;j++)
+                free(file->content.block[j]);
+          return;
+        }
+        printf("\ncursor %ld \n ",ftell(input));
+    }
+    // printf("%d",content_size);
 }
 
-void unpack(FILE* input){ // to do
-    // read_header();
+void unpack(FILE* input){ // to verify for more than one file
+    int content_size=0,header_counter=0,file_counter=0;
     struct files *file=(struct files*)malloc(sizeof(struct files));
     if(file == NULL){
         free(file);
         printf("error occured when allocating memory to the files");
         return ;
     }
-    process_header(input,file);
-    print_header(file);
-    // printf(file->header.path_name);
-    // read_content();
-    // write_content();
+        // file_counter=header_counter;
+        // process_header(input,file+file_counter,&header_counter);
+        // process_content(input,file+file_counter,&content_size);
+        // print_header(file);
+        // print_content(file+file_counter,content_size);
+    
+    do{
+        file_counter=header_counter;
+        struct files *aux = (struct files*)realloc(file,sizeof(struct files)*file_counter+1);
+        if(aux == NULL){
+            free(file);
+            printf("error occured when allocating memory to the files");
+            return ;
+        }
+        file=aux;
+        process_header(input,file+file_counter,&header_counter);
+        process_content(input,file+file_counter,&content_size);
+        print_header(file+file_counter);
+        print_content(file+file_counter,content_size);
+    }while(header_counter!=-1);
+    printf("\n%d\n",file_counter-1);
     free(file);
 } 
 
@@ -168,6 +232,13 @@ void print_header(struct files* file){
     printf("checksum: %d\n",file->header.checksum);
     printf("link: %d\n",file->header.link);
     printf("linked_name: %s",file->header.linked_name);
+    printf("\n");
+}
+void print_content(struct files* file,int content_size){
+    printf("\n File Content: \n");
+    for(int i=0;i<content_size;++i)
+        printf(file->content.block[i]);
+    printf("\n");
 }
 
 //  ./a x plm.tar
