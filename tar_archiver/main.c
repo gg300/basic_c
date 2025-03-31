@@ -42,7 +42,7 @@ int octal_string_to_decimal(char string[],int size){
     return conversion;
 }
 
-void process_header(FILE* input,struct files* file, int *header_counter){
+void process_header(FILE* input,struct files* file, int *header_counter){  /// forgot to free memory for every fread error;
     //header filed sizes
     int path_and_name_size=100; 
     int file_mode_size=8; // octal
@@ -58,7 +58,7 @@ void process_header(FILE* input,struct files* file, int *header_counter){
 
     char buffer[100];
 
-    if(fread(buffer,sizeof(*buffer),path_and_name_size,input) != path_and_name_size){
+    if(fread(buffer,1,path_and_name_size,input) != path_and_name_size){
         if(*header_counter==0)
             printf("Error reading header file\n");
         else
@@ -66,81 +66,103 @@ void process_header(FILE* input,struct files* file, int *header_counter){
       return;
     }
     strcpy(file->header.path_name,buffer);
-    total_sizes+=path_and_name_size;
+    // total_sizes+=path_and_name_size;
 
-    if(fread(buffer,sizeof(*buffer),file_mode_size,input) != file_mode_size){
+    if(fread(buffer,1,file_mode_size,input) != file_mode_size){
+        
         printf("Error reading file mode\n");
         return;
     }
     file->header.file_mode=octal_string_to_decimal(buffer,file_mode_size);
-    total_sizes+=file_mode_size;
+    // total_sizes+=file_mode_size;
 
-    if(fread(buffer,sizeof(*buffer),owner_id_size,input) != owner_id_size){
+    if(fread(buffer,1,owner_id_size,input) != owner_id_size){
         printf("Error reading file owner_id\n");
         return;
     }
     file->header.owner_id=octal_string_to_decimal(buffer,owner_id_size);
-    total_sizes+=owner_id_size;
+    // total_sizes+=owner_id_size;
 
 
-    if(fread(buffer,sizeof(*buffer),group_id_size,input) != group_id_size){
+    if(fread(buffer,1,group_id_size,input) != group_id_size){
         printf("Error reading file group_id\n");
         return;
     }
     file->header.group_id=octal_string_to_decimal(buffer,group_id_size);
-    total_sizes+=group_id_size;
+    // total_sizes+=group_id_size;
 
-    if(fread(buffer,sizeof(*buffer),file_size,input) != file_size){
+    if(fread(buffer,1,file_size,input) != file_size){
         printf("Error reading file size\n");
         return;
     }
     file->header.file_size=octal_string_to_decimal(buffer,file_size);
-    total_sizes+=file_size;
+    // total_sizes+=file_size;
     
-    if(fread(buffer,sizeof(*buffer),last_modification_size,input) != last_modification_size){
+    if(fread(buffer,1,last_modification_size,input) != last_modification_size){
         printf("Error reading file modification\n");
         return;
     }
     file->header.last_modification=octal_string_to_decimal(buffer,last_modification_size);
-    total_sizes+=last_modification_size;
+    // total_sizes+=last_modification_size;
     
-    if(fread(buffer,sizeof(*buffer),checksum_size,input) != checksum_size){
+    if(fread(buffer,1,checksum_size,input) != checksum_size){
         printf("Error reading file checksum\n");
         return;
     }
     file->header.checksum=octal_string_to_decimal(buffer,checksum_size);
-    total_sizes+=checksum_size;
+    // total_sizes+=checksum_size;
 
-    if(fread(buffer,sizeof(*buffer),link_size,input) != link_size){
+    if(fread(buffer,1,link_size,input) != link_size){
         printf("Error reading file link\n");
         return;
     }
 
     file->header.link=buffer[0]-'0'; //has only one byte
-    total_sizes+=link_size;
+    // total_sizes+=link_size;
     
-    if(fread(buffer,sizeof(*buffer),linked_name_size,input) != linked_name_size){
+    if(fread(buffer,1,linked_name_size,input) != linked_name_size){
         printf("Error reading file linked_name\n");
         return;
     }
     strcpy(file->header.linked_name,buffer);
-    total_sizes+=linked_name_size;
+    // total_sizes+=linked_name_size;
+    total_sizes=ftell(input)%512;
     int remaining=BLOCK-total_sizes;
-    while(total_sizes<BLOCK){
-        int garbage_number;
-        if((remaining%100)>0){garbage_number=remaining%100;
-           if(fread(buffer,sizeof(*buffer),garbage_number,input)!=garbage_number)
-                printf(":P");
-        remaining-=remaining%100;
+    while(total_sizes!=BLOCK){
+        int garbage_number=0;
+        if(remaining<100 && remaining>0){
+            garbage_number=remaining%100;
+            if(fread(buffer,1,garbage_number,input)!=garbage_number){
+                printf(":P   , remaining %d",remaining);
+                return;
+            }
         }
-        else{garbage_number=100;
-            if(fread(buffer,sizeof(*buffer),garbage_number,input)!=100)
-                printf(":0");
+        else{
+            garbage_number=100;
+            if(fread(buffer,1,garbage_number,input)!=garbage_number){
+                printf(":0   , remaining %d",remaining);
+                return;
+            }
         }
+        remaining-=garbage_number;
         total_sizes+=garbage_number;
         printf("\nheader cursor %ld\n",ftell(input));
     }
-
+    // while(total_sizes!=BLOCK){
+    //     int garbage_number;
+    //     if((remaining%100)>0){garbage_number=remaining%100;
+    //        if(fread(buffer,sizeof(char),garbage_number,input)!=garbage_number)
+    //             printf(":P");
+    //     }
+    //     else{garbage_number=100;
+    //         if(fread(buffer,sizeof(char),garbage_number,input)!=100)
+    //         printf(":0");
+    // }
+    //     remaining-=garbage_number;
+    //     total_sizes+=garbage_number;
+    //     printf("\nheader cursor %ld\n",ftell(input));
+    // }
+    printf("\nafter while %ld\n",ftell(input));
     (*header_counter)++;
 }
 void process_content(FILE* input,struct files* file,int *content_size){  //// UTF-8 problems with this kind of processing but content is intact
@@ -164,7 +186,7 @@ void process_content(FILE* input,struct files* file,int *content_size){  //// UT
         }
         printf("\ncursor %ld \n ",ftell(input));
     }
-    printf("%d",*content_size);
+    printf("content size: %d",*content_size);
 }
 
 void unpack(FILE* input){ // to verify for more than one file
@@ -218,6 +240,7 @@ int main(int arg, char* args[]) {
 
 //integration tests
 void print_header(struct files* file){
+    printf("\nheader:\n");
     printf("path_name: %s\n",file->header.path_name);
     printf("file_mode: %d\n",file->header.file_mode);
     printf("owner_id: %d\n",file->header.owner_id);
