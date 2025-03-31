@@ -150,6 +150,7 @@ void process_content(FILE* input,struct files* file,int *content_size){  //// UT
 
     if(file->content==NULL){
         free(file->content);
+        free(file);
         printf("content memory allocation error");
         return ;
     }
@@ -158,6 +159,7 @@ void process_content(FILE* input,struct files* file,int *content_size){  //// UT
         if(fread(file->content[i].block,sizeof(*(file->content[i].block)),BLOCK,input) != BLOCK){
             printf("Error reading file content\n");
             free(file->content);
+            free(file);
           return;
         }
         printf("\ncursor %ld \n ",ftell(input));
@@ -183,6 +185,8 @@ void unpack(FILE* input){ // to verify for more than one file
         file_counter=header_counter;
         struct files *aux = (struct files*)realloc(file,sizeof(struct files)*file_counter+1);
         if(aux == NULL){
+            for(int i=0;i<file_counter;i++)
+                free(file[i].content);
             free(file);
             printf("error occured when allocating memory to the files");
             return ;
@@ -190,10 +194,12 @@ void unpack(FILE* input){ // to verify for more than one file
         file=aux;
         process_header(input,&file[file_counter],&header_counter);
         process_content(input,&file[file_counter],&content_size);
-        print_header(file+file_counter);
-        print_content(file+file_counter,content_size);
+        print_header(&file[file_counter]);
+        print_content(&file[file_counter],content_size);
     }while(header_counter!=-1);
     printf("\n%d\n",file_counter-1);
+    for(int i=0;i<file_counter;i++)
+        free(file[i].content);
     free(file);
 } 
 
