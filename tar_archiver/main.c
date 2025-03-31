@@ -19,8 +19,8 @@ struct files{
         char linked_name[100];
     }header;
     struct content{
-        char* block[BLOCK];
-    }content;
+        char block[BLOCK];
+    }*content;
 };
 void print_header(struct files* file); // test prototypes
 void print_content(struct files* file,int content_size);
@@ -145,36 +145,24 @@ void process_header(FILE* input,struct files* file, int *header_counter){
 }
 void process_content(FILE* input,struct files* file,int *content_size){  //// UTF-8 problems with this kind of processing but content is intact
     *content_size = file->header.file_size/BLOCK + ((file->header.file_size%BLOCK)&&1);
-    // printf("\n size content %d\n",*content_size);
-    // file->content.block = (char**)malloc(sizeof(char*) * (*content_size));
+    
+    file->content = (struct content*)malloc(sizeof(struct content) * (*content_size));
 
-
-     // TO DO !!!! SOMETHING FAILS WITH THE MEMORY ALLOCATION especially from the second file
-
-     
-    for(int i=0;i<*content_size;++i){ // just allocate memory blocks for content 
-        
-        file->content.block[i] = (char*)malloc(BLOCK);
-        printf("content %s %d",file->content.block[i], i);
-        if(file->content.block[i]==NULL){
-            for(int j=0;j<i;j++)
-                free(file->content.block[j]);
-            printf("Error while assigning memory to content");
-            return;
-        }
-        printf("\n for content %d\n",i);
+    if(file->content==NULL){
+        free(file->content);
+        printf("content memory allocation error");
+        return ;
     }
     for(int i=0;i<*content_size;++i){ // read the memory blocks for content
         printf("\n for2 content %d\n",i);
-        if(fread(file->content.block[i],sizeof(*(file->content.block[i])),BLOCK,input) != BLOCK){
+        if(fread(file->content[i].block,sizeof(*(file->content[i].block)),BLOCK,input) != BLOCK){
             printf("Error reading file content\n");
-            for(int j=0;j<i;j++)
-                free(file->content.block[j]);
+            free(file->content);
           return;
         }
         printf("\ncursor %ld \n ",ftell(input));
     }
-    // printf("%d",content_size);
+    printf("%d",*content_size);
 }
 
 void unpack(FILE* input){ // to verify for more than one file
@@ -200,8 +188,8 @@ void unpack(FILE* input){ // to verify for more than one file
             return ;
         }
         file=aux;
-        process_header(input,file+file_counter,&header_counter);
-        process_content(input,file+file_counter,&content_size);
+        process_header(input,&file[file_counter],&header_counter);
+        process_content(input,&file[file_counter],&content_size);
         print_header(file+file_counter);
         print_content(file+file_counter,content_size);
     }while(header_counter!=-1);
@@ -237,7 +225,7 @@ void print_header(struct files* file){
 void print_content(struct files* file,int content_size){
     printf("\n File Content: \n");
     for(int i=0;i<content_size;++i)
-        printf(file->content.block[i]);
+        printf("%s",file->content[i].block);
     printf("\n");
 }
 
